@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<meta charset="UTF-8">
+<html>
+<head>
+<title>CSC367 Project Visualizer</title>
+<script type="x-shader/x-vertex" id="point-vshader-source">
+    attribute vec3 a_coords;
+    attribute vec3 a_color;
+    attribute float a_size;
+    varying vec3 v_color;
+    uniform mat4 modelview;
+    uniform mat4 projection; 
+    void main() {
+        gl_PointSize = a_size; 
+        vec4 coords = vec4(a_coords, 1.0);
+        vec4 eyeCoords = modelview * coords;
+        gl_Position = projection * eyeCoords;
+        v_color = a_color;
+    } 
+</script>
+
+<script type="x-shader/x-fragment" id="point-fshader-source">
+    #ifdef GL_FRAGMENT_PRECISION_HIGH
+        precision highp float;
+    #else
+        precision mediump float;
+    #endif
+    varying vec3 v_color;
+    void main() {
+        gl_FragColor = vec4(v_color, 1.0);
+    }     
+</script>
+
+<script src="./gl-matrix-min.js"></script>
+<script src="./gl-base.js"></script>
+<script src="./index.js"></script>
+
+<style>
+    :root {
+        --size:750px;
+    }
+    body {
+        background-color:#333;
+    }
+
+    label {
+            white-space: pre;
+    }
+
+    #canvas-holder {
+        margin-right:8px;
+        height:var(--size);
+        position:relative;
+        /*resize:both;*/
+        /*overflow:auto;*/
+    }
+
+    #input-area {
+        color:#bbb;
+        width:250px;
+        display:flex;
+        flex-direction: column;
+    }
+
+    #instructions {
+        color:#bbb;
+        padding:15px;
+    }
+
+    h1, h3 {
+        margin:3px 0;
+    }
+
+    textarea {
+        box-sizing:border-box;
+        width:100%;
+        resize:none;
+    }
+    /*.slidecontainer {
+        color:#bbb;
+        position:absolute;
+        left:0;
+    }
+
+    .slider {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%; 
+        height: 15px; 
+        background: #d3d3d3;
+        outline: none; 
+        opacity: 0.7; 
+        -webkit-transition: .2s
+        transition: opacity .2s;
+        transform: rotateZ(90deg);
+        transform-origin:top left;
+        margin:0;
+        margin-left:15px;
+        width:1000px;
+        top:500px;
+    }
+
+    .slider:hover {
+        opacity: 1; 
+    }*/
+
+    #data {
+        width:100%;
+        min-width:300px;
+        height:100%;
+    }
+</style>
+</head>
+
+<body onload="init()">
+
+<div style="display:flex">
+    <div id="canvas-holder">
+        <!--<div class="slidecontainer">
+            <input type="range" min="500" max="1000" value="750" class="slider" id="fieldSize">
+        </div> -->
+        <canvas width=750 height=750 id="webglcanvas" style="background-color:red"></canvas>
+    </div>
+    <div id="input-area">
+        <h3> Simulation Properties: </h3>
+        <span id='meta'></span>
+        <h3> Paste data below: </h3>
+        <textarea id='data' contenteditable='true' type="text"></textarea>
+    </div>
+
+
+
+</div>
+<div id="instructions">
+    <h1>Instructions</h1>
+    <p>Simple renderer for the csc367 project particle output, useful for correctness visualization.<br/>
+    
+    NOTE: Can likely only handle output of around 500 particles without crashing or hanging for a long time depending on your machine</p>
+
+    <h2> Generating Output </h2>
+    <p> Configure your mpi processes to each output a file (e.g. sim_0.txt, sim_1.txt...) with the format <br/><br/>
+
+    numparticles,size,numsteps<br/>
+    step,rank,x,y<br/>
+    step,rank,x,y<br/>
+    step,rank,x,y<br/>
+    step,rank,x,y<br/>
+    step,rank,x,y<br/>
+    step,rank,x,y<br/>
+    etc..<br/></p>
+
+    <ul>
+    <li> Particle order does not matter since the step is in the format </li>
+    <li>You don't have to print every step, I found every other step looks good</li>
+    </ul>
+
+    <p> I did it like this</p>
+    <pre>
+    #include &lt;string.h&gt;
+    #include &lt;sstream&gt;
+
+    std::ostringstream oss;
+    oss << "sim_" << rank << ".txt";
+    FILE *fsave_custom = fopen( oss.str().c_str(), "w" );
+    bool first = true;
+
+    // In the step loop
+    if( find_option( argc, argv, "-no" ) == -1 ) {
+        if( fsave_custom && (step%2) == 0 ) {
+            // Metadata
+            if(first) {
+                float size = 0.0005*n; // Copied from common
+                fprintf(fsave_custom, "%d,%g,%d\n", n, size,NSTEPS);
+                first = false;
+            }
+
+            // For each particle p owned by rank {
+                fprintf(fsave_custom, "%d,%d,%g,%g\n", step, rank, p.x, p.y);
+            }
+        }
+    }
+    </pre>
+
+    <h2> Combine Output </h2>
+    <p>Combine all the output into one file, I did it with the script</p>
+    <pre>
+    # combine.sh
+    first=1
+    for var in "$@"; do 
+        if [ $first -eq 1 ]; then
+            cat $var > './simdata.txt'
+            first=0
+        else
+            cat $var | tail -n +2 >> './simdata.txt'
+        fi
+    done
+    </pre>
+    <p> and running it like </p>
+    <pre>./combine.sh ./sim_*.txt </pre>
+
+    <p>You can look in the sampleoutput folder on the repo for examples</p>
+
+    <h2> Running the simulation </h2>
+    <p>Open index.html<br/>
+    Paste lines of simdata.txt into the text area <br/>
+    Wait a minute for program to parse.<br/>
+
+    NOTE AGAIN: Don't do more than 500 particles otherwise it will will likely crash webgl.</p>
+</div>
+
+</body>
+</html>
+
